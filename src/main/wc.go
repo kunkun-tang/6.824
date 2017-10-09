@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
-	"mapreduce"
+	"../mapreduce"
 	"os"
+	"strings"
+	"strconv"
 )
 
 //
@@ -13,8 +15,13 @@ import (
 // and look only at the contents argument. The return value is a slice
 // of key/value pairs.
 //
-func mapF(filename string, contents string) []mapreduce.KeyValue {
-	// TODO: you have to write this function
+func mapF(filename string, contents string) (res []mapreduce.KeyValue) {
+	words := strings.Fields(contents)
+	for _, w := range words {
+		kv := mapreduce.KeyValue{Key: w, Value: "1"}
+		res = append(res, kv)
+	}
+	return
 }
 
 //
@@ -23,7 +30,7 @@ func mapF(filename string, contents string) []mapreduce.KeyValue {
 // any map task.
 //
 func reduceF(key string, values []string) string {
-	// TODO: you also have to write this function
+	return strconv.Itoa(len(values))
 }
 
 // Can be run in 3 ways:

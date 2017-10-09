@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	nNumber = 100000
+	nNumber = 100
+	//nNumber = 100000
 	nMap    = 100
 	nReduce = 50
 )
@@ -23,6 +24,7 @@ const (
 // Check if we have N numbers in output file
 
 // Split in words
+// Todo kunkun-tang: file is unused.
 func MapFunc(file string, value string) (res []KeyValue) {
 	debug("Map %v\n", value)
 	words := strings.Fields(value)
