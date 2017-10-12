@@ -25,7 +25,7 @@ func doReduce(
 
 	for mapId := 0; mapId < nMap; mapId ++ {
 		intermediateFileName := reduceName(jobName, mapId, reduceTaskNumber)
-		debug("In the reduce func file name = %s\n", intermediateFileName)
+		//debug("In the reduce func file name = %s\n", intermediateFileName)
 		readFile, _ := os.Open(intermediateFileName)
 
 		dec := json.NewDecoder(readFile)

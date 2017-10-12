@@ -4,14 +4,6 @@ import (
 	"fmt"
 )
 
-type TaskArgs struct {
-	JobName string
-	Phase jobPhase
-	TaskNumber int
-	File string
-	NumOtherPhase int
-}
-
 //
 // schedule() starts and waits for all tasks in the given phase (Map
 // or Reduce). the mapFiles argument holds the names of the files that
@@ -32,34 +24,53 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 		ntasks = nReduce
 		n_other = len(mapFiles)
 	}
-	rpc_addr := <- registerChan
 
+	var rpc_addr string = <- registerChan
 	fmt.Printf("Schedule: %v %v tasks (%d I/Os)\n", ntasks, phase, n_other)
 	switch phase {
 	case mapPhase:
 		for taskId := 0; taskId < ntasks; taskId ++ {
-			debug("register chan\n")
-			//rpc_addr := <- registerChan
-			myTaskArgs := TaskArgs{
+			myTaskArgs := DoTaskArgs{
 				JobName:jobName,
 				Phase:phase,
 				TaskNumber:taskId,
 				File:mapFiles[taskId],
 				NumOtherPhase:n_other,
+			}
+			//if ok := call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{})); ok == true {
+			//	continue
+			//} else {
+			//	rpc_addr = <- registerChan
+			//	call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{}))
+			//}
+			for {
+				ok := call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{}))
+				if ok == true {
+					break
+				} else {
+					rpc_addr = <- registerChan
 				}
-			call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{}))
-			debug("finish chan\n")
+			}
+			debug("Map Error")
 		}
 	case reducePhase:
 		for taskId := 0; taskId < ntasks; taskId ++ {
 			//rpc_addr := <- registerChan
-			myTaskArgs := TaskArgs{
+			myTaskArgs := DoTaskArgs{
 				JobName:jobName,
 				Phase:phase,
 				TaskNumber:taskId,
 				NumOtherPhase:n_other,
 			}
-			call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{}))
+			for {
+				ok := call(rpc_addr, "Worker.DoTask", myTaskArgs, new(struct{}))
+				if ok == true {
+					break
+				} else {
+					rpc_addr = <- registerChan
+				}
+			}
+			debug("Reduce Error")
 		}
 	}
 
