@@ -20,7 +20,7 @@ import "sync"
 const RaftElectionTimeout = 1000 * time.Millisecond
 
 func TestInitialElection2A(t *testing.T) {
-	servers := 3
+	servers := 5
 	cfg := make_config(t, servers, false)
 	defer cfg.cleanup()
 
@@ -68,7 +68,7 @@ func TestReElection2A(t *testing.T) {
 	// if a quorum arises, it should elect a leader.
 	cfg.connect((leader2 + 1) % servers)
 	cfg.checkOneLeader()
-
+	println("The current term for raft 0 = ", cfg.rafts[0].currentTerm)
 	// re-join of last node shouldn't prevent leader from existing.
 	cfg.connect(leader2)
 	cfg.checkOneLeader()
