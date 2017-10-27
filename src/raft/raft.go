@@ -72,8 +72,16 @@ type Raft struct {
 	votedFor    int
 	log	[]LogEntry
 	voteCount int
-
 	identity    int
+
+	//For log Replication
+	commitIndex int
+	lastApplied int
+	//volatile state on leader
+	nextIndex []int
+	matchIndex []int
+
+	// Channel
 	votingEvent chan bool
 	voteReply   chan bool
 	appenEntryChan chan bool
@@ -153,12 +161,17 @@ type RequestVoteReply struct {
 type AppendEntriesArgs struct {
 	Term     int
 	LeaderId int
+	PrevLogTerm int
+	PrevLogIndex int
+	Entries []LogEntry
+	LeaderCommit int
 }
 
 //
 type AppendEntriesReply struct {
 	Term int
 	Success bool
+	NextIndex int
 }
 
 //
@@ -184,8 +197,26 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	reply.Term = rf.currentTerm
-	reply.Success = true
+	reply.Success = false
+	baseIndex := rf.log[0].LogIndex
+
+	if args.Term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.NextIndex = rf.getLastIndex() + 1
+		//	fmt.Printf("%v currentTerm: %v rejected %v:%v\n",rf.me,rf.currentTerm,args.LeaderId,args.Term)
+		return
+	}
 	rf.appenEntryChan <- true
+
+	if args.PrevLogIndex > rf.getLastIndex() {
+		reply.NextIndex = rf.getLastIndex() + 1
+		return
+	}
+
+	rf.log = rf.log[: args.PrevLogIndex+1-baseIndex]
+	rf.log = append(rf.log, args.Entries...)
+	reply.Success = true
+	reply.NextIndex = rf.getLastIndex() + 1
 }
 //
 // example code to send a RequestVote RPC to a server.
@@ -263,7 +294,7 @@ func (rf *Raft) boatcastRequestVote() {
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
 	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
-	if ok == true {
+	if ok {
 		rf.appenEntrySuccessChan <- true
 	}
 	return ok
@@ -291,7 +322,9 @@ func (rf *Raft)Start(command interface{}) (int, int, bool) {
 
 	if isLeader {
 		index = rf.getLastIndex() + 1
+		rf.log = append(rf.log, LogEntry{LogTerm:term,LogComd:command,LogIndex:index}) // append new entry from client
 	}
+	fmt.Printf("start = log \n", rf.log)
 
 	// Your code here (2B).
 	return index, term, isLeader
@@ -328,6 +361,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 	rf.identity = Follower
 	rf.currentTerm = 1
+
+	rf.commitIndex = 0
+	rf.lastApplied = 0
 	rf.log = append(rf.log, LogEntry{LogTerm: 0})
 
 	rf.votingEvent = make(chan bool, 100)
@@ -352,10 +388,14 @@ func Make(peers []*labrpc.ClientEnd, me int,
 			case Leader:
 				// contanly sending messages.
 				time.Sleep(time.Microsecond * 50)
+				//println("log =", rf.log)
 				for i := range rf.peers {
 					if i != rf.me {
 						var args AppendEntriesArgs
 						args.LeaderId = rf.me
+						args.Term = rf.currentTerm
+						args.Entries = make([]LogEntry, len(rf.log[0:]))
+						copy(args.Entries, rf.log[0:])
 						var reply AppendEntriesReply
 						go rf.sendAppendEntries(i, &args, &reply)
 					}
