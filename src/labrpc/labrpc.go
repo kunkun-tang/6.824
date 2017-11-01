@@ -89,13 +89,19 @@ func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 
 	qb := new(bytes.Buffer)
 	qe := gob.NewEncoder(qb)
+	//println("debug call 3 svcMeth:", svcMeth)
+
 	qe.Encode(args)
 	req.args = qb.Bytes()
 
 	e.ch <- req
-
+	//println("debug call 1")
 	rep := <-req.replyCh
+	//println("debug call 2")
+
 	if rep.ok {
+		//println("debug call 4")
+
 		rb := bytes.NewBuffer(rep.reply)
 		rd := gob.NewDecoder(rb)
 		if err := rd.Decode(reply); err != nil {
