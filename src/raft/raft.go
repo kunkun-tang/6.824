@@ -25,6 +25,7 @@ import (
 	"encoding/gob"
 	"time"
 	"math/rand"
+	"fmt"
 )
 const (
 	STATE_LEADER = iota
@@ -101,6 +102,7 @@ func (rf *Raft) getLastTerm() int {
 	return rf.log[len(rf.log) - 1].LogTerm
 }
 func (rf *Raft) IsLeader() bool {
+	//fmt.Printf("current state: %v who am I: %v\n",rf.state,rf.me)
 	return rf.state == STATE_LEADER
 }
 // save Raft's persistent state to stable storage,
@@ -309,7 +311,6 @@ func (rf *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply)
 		reply.Success = true
 		reply.NextIndex = rf.getLastIndex() + 1
 	}
-	//println(rf.me,rf.getLastIndex(),reply.NextIndex,rf.log)
 	if args.LeaderCommit > rf.commitIndex {
 		last := rf.getLastIndex()
 		if args.LeaderCommit > last {
@@ -610,9 +611,11 @@ func (rf *Raft) boatcastAppendEntries() {
 				args.LeaderCommit = rf.commitIndex
 				go func(i int,args AppendEntriesArgs) {
 					var reply AppendEntriesReply
+					//fmt.Printf("sendding: %v\n", args)
 					rf.sendAppendEntries(i, args, &reply)
 				}(i,args)
 			} else {
+				//println("acccess snapshot Args.\n")
 				var args InstallSnapshotArgs
 				args.Term = rf.currentTerm
 				args.LeaderId = rf.me
@@ -683,7 +686,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 				rf.persist()
 				rf.mu.Unlock()
 				go rf.boatcastRequestVote()
-				//fmt.Printf("%v become CANDIDATE %v\n",rf.me,rf.currentTerm)
+				fmt.Printf("%v become CANDIDATE %v\n",rf.me,rf.currentTerm)
 				select {
 				case <-time.After(time.Duration(rand.Int63() % 333 + 550) * time.Millisecond):
 				case <-rf.chanHeartbeat:
@@ -713,10 +716,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 				rf.mu.Lock()
 				commitIndex := rf.commitIndex
 				baseIndex := rf.log[0].LogIndex
+				//fmt.Printf("get successfull chanCommit\n")
 				for i := rf.lastApplied+1; i <= commitIndex; i++ {
 					msg := ApplyMsg{Index: i, Command: rf.log[i-baseIndex].LogComd}
 					applyCh <- msg
-					//fmt.Printf("me:%d %v\n",rf.me,msg)
 					rf.lastApplied = i
 				}
 				rf.mu.Unlock()
